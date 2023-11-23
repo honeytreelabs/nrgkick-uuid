@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kick UUIDs</title>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
+</head>
+<body>
+    <h1>UUID as a Service</h1>
+    <p>No warranty, nothing. Use at your own risk. Good luck! :-)</p>
+    <input type="text" id="ipInput" placeholder="Enter IP">
+    <input type="text" id="pinInput" placeholder="Pin">
+    <input type="text" id="uuidInput" placeholder="UUID">
+    <button id="connectButton">Kick!</button>
+
+    <script>
+        protobuf.load("https://raw.githubusercontent.com/honeytreelabs/nrgkick-proto/dev-fix-parsing-errors/nrgcp.proto", function(err, root) {
+            if (err) {
+                throw err;
+            }
+
+            window.Nrgcp = root.lookupType("nrgkick.Nrgcp");
+            window.Nrgcp_Header = root.lookupType("nrgkick.Nrgcp.Header");
+            window.Nrgcp_Metadata = root.lookupType("nrgkick.Nrgcp.Metadata");
+            window.Nrgcp_Payload = root.lookupType("nrgkick.Nrgcp.Payload");
+            window.Nrgcp_Payload_DeviceControl_Info_Update = root.lookupType("nrgkick.NrgcpDevicecontrolInfoUpdatePayload");
+            window.Nrgcp_Payload_DeviceControl_Info_Update_DevicePin = root.lookupType("nrgkick.NrgcpDevicecontrolInfoUpdatePayload.DevicePin");
+            window.Nrgcp_Types = root.lookupType("nrgkick.NrgcpTypes");
+
+        });
+
+        document.getElementById('pinInput').value = 'LAST-7-NUMBERS-OF-SERIAL';
+        document.getElementById('uuidInput').value = 'set your UUID here';
+        document.getElementById('connectButton').addEventListener('click', function() {
+            var ip = document.getElementById('ipInput').value;
+            if(ip) {
+                var websocket = new WebSocket('ws://' + ip + ':8765');
+
+                var request = window.Nrgcp.create();
+                request.header = window.Nrgcp_Header.create()
+                request.metadata = window.Nrgcp_Metadata.create()
+                request.payload = window.Nrgcp_Payload.create()
+                request.payload.DEVICECONTROL_INFO_UPDATE = window.Nrgcp_Payload_DeviceControl_Info_Update.create()
+                request.payload.DEVICECONTROL_INFO_UPDATE.devicePin = window.Nrgcp_Payload_DeviceControl_Info_Update_DevicePin.create();
+
+                request.header.type = window.Nrgcp_Header.Type.UPDATE;
+                request.header.service = window.Nrgcp_Header.Service.DEVICE_CONTROL;
+                request.header.property = window.Nrgcp_Header.Property.INFO;
+
+                request.metadata.requestId = crypto.randomUUID().slice(0, 8);
+
+                request.payload.DEVICECONTROL_INFO_UPDATE.devicePin.accessControlState = window.Nrgcp_Types.AccessControlState.AUTHORIZE_CLIENT;
+                request.payload.DEVICECONTROL_INFO_UPDATE.devicePin.pin = document.getElementById('pinInput').value.toString();
+                request.payload.DEVICECONTROL_INFO_UPDATE.devicePin.uuid = document.getElementById('uuidInput').value.toString();
+
+                var buffer = Nrgcp.encode(request).finish();
+
+                websocket.addEventListener('open', (event) => {
+                    console.log("Connection opened:", event);
+                    websocket.send(buffer);
+                });
+
+                websocket.addEventListener('message', (event) => {
+                    console.log("Message received.", event);
+                });
+
+                websocket.addEventListener('close', (event) => {
+                    console.log("Connection closed.", event);
+                });
+            } else {
+                alert("Please enter a valid IP.");
+            }
+        });
+    </script>
+</body>
+</html>
