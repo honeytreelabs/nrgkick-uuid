@@ -14,6 +14,8 @@
     <input type="text" id="pinInput" placeholder="Pin">
     <input type="text" id="uuidInput" placeholder="UUID">
     <button id="connectButton">Kick!</button>
+    <br />
+    <p id="result"></p>
 
     <script>
         protobuf.load("https://raw.githubusercontent.com/dupondje/nrgkick-proto/main/nrgcp.proto", function(err, root) {
@@ -31,8 +33,21 @@
 
         });
 
+        function blobToUint8Array(blob, callback) {
+            const reader = new FileReader();
+            reader.onload = function() {
+                const arrayBuffer = reader.result;
+                const uint8Array = new Uint8Array(arrayBuffer);
+                callback(uint8Array);
+            };
+            reader.onerror = function(error) {
+                console.error("Error reading blob as array buffer:", error);
+            };
+            reader.readAsArrayBuffer(blob);
+        }
+
         document.getElementById('pinInput').value = 'LAST-7-NUMBERS-OF-SERIAL';
-        document.getElementById('uuidInput').value = 'set your UUID here';
+        document.getElementById('uuidInput').value = 'Set your UUID here';
         document.getElementById('connectButton').addEventListener('click', function() {
             var ip = document.getElementById('ipInput').value;
             if(ip) {
@@ -64,6 +79,16 @@
 
                 websocket.addEventListener('message', (event) => {
                     console.log("Message received.", event);
+                    blobToUint8Array(event.data, function(uint8Array) {
+                        var response = window.Nrgcp.decode(uint8Array);
+                        console.log("Decoded response: ", response);
+                        if (response.header.status == window.Nrgcp_Header.Status.ACCEPTED
+                                && response.header.service == window.Nrgcp_Header.Service.DEVICE_CONTROL
+                                && response.header.type == window.Nrgcp_Header.Type.UPDATE
+                                && response.header.property == window.Nrgcp_Header.Property.INFO) {
+                            document.getElementById('result').innerHTML = "<h2>Kicked.</h2>";
+                        }
+                    });
                 });
 
                 websocket.addEventListener('close', (event) => {
